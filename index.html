@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IPO Dashboard</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js")
+        .then(() => console.log("✅ Service Worker registered"))
+        .catch(err => console.log("❌ SW failed:", err));
+    }
+  </script>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: #f4f7fb;
+      color: #333;
+      padding-bottom: calc(90px + env(safe-area-inset-bottom));
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(90deg, #0052a5, #0077cc);
+      color: #fff;
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+    }
+    header h1 {
+      flex: 1;
+      text-align: center;
+      margin: 0;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    .drawer-btn, #alertBell {
+      cursor: pointer;
+      z-index: 10;
+    }
+    #alertBell { position: relative; }
+    #alertDot {
+      display: none;
+      width: 10px; height: 10px;
+      background: red; border-radius: 50%;
+      position: absolute; top: 2px; right: 2px;
+    }
+
+    /* Search + Filter */
+    .search-bar {
+      display: flex; gap: 10px;
+      padding: 10px;
+    }
+    .search-bar input, .search-bar select {
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+    }
+    .search-bar input { flex: 1; }
+
+    /* Top Tabs */
+    nav.top {
+      display: flex; justify-content: space-around;
+      margin: 10px; gap: 10px;
+    }
+    nav.top button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px; font-weight: bold;
+      background: #e5e7eb; color: #333;
+    }
+    nav.top button.active { background: #0052a5; color: #fff; }
+
+    /* IPO Cards */
+    .grid { padding: 10px; }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 15px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+    }
+    .card:hover { transform: translateY(-3px); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .card-header img {
+      width: 80px; height: 50px;
+      border-radius: 6px; border: 1px solid #ccc;
+      object-fit: contain; background: #fafafa;
+    }
+    .card-header h3 {
+      flex: 1;
+      text-align: center;
+      margin: 0; font-size: 16px; font-weight: bold;
+    }
+
+    .status {
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .status::before {
+      content: "";
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status.live::before { background: green; animation: blink 1s infinite; }
+    .status.upcoming::before { background: orange; }
+    .status.closed::before { background: red; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .divider { height: 1px; background: #ddd; margin: 10px 0; }
+    .card-info {
+      display: flex; justify-content: space-between;
+      font-size: 13px;
+    }
+    .card-table {
+      display: flex; justify-content: space-between;
+      font-size: 13px; text-align: center;
+      position: relative;
+    }
+    .card-table div { flex: 1; }
+    .card-table div:not(:last-child)::after {
+      content: ""; position: absolute;
+      top: 0; bottom: 0;
+      width: 1px; background: #ddd;
+    }
+    .card-table div:nth-child(1)::after { left: 33%; }
+    .card-table div:nth-child(2)::after { left: 66%; }
+
+    /* Footer */
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      position: relative;
+    }
+    .card-footer .details-btn {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 14px;
+      border: none; border-radius: 8px;
+      background: #0052a5; color: #fff;
+      cursor: pointer; font-size: 14px;
+    }
+    .fund-size {
+      background: #eaf2ff;
+      color: #0052a5;
+      font-weight: bold;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: auto;
+    }
+    .fund-size .material-icons {
+      font-size: 18px;
+    }
+
+    /* Responsive Footer */
+    @media (max-width: 480px) {
+      .card-footer {
+        flex-direction: column;
+        position: relative;
+      }
+      .card-footer .details-btn {
+        position: relative;
+        left: auto;
+        transform: none;
+        margin-bottom: 8px;
+        width: 100%;
+      }
+      .card-footer .fund-size {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    /* Modals */
+    .modal { display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.5);
+      justify-content:center; align-items:center; z-index:200;
+    }
+    .modal-content {
+      background:#fff; padding:20px;
+      border-radius:12px;
+      width:90%; max-width:360px;
+      position:relative;
+    }
+    .close {
+      position:absolute; top:10px; right:15px;
+      cursor:pointer; font-size:20px;
+    }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      position: fixed; bottom: env(safe-area-inset-bottom, 15px); left: 50%;
+      transform: translateX(-50%);
+      height: 65px; width: 90%;
+      background: #fff;
+      border-radius: 35px;
+      display: flex; justify-content: space-around; align-items: center;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      z-index: 100;
+    }
+    .bottom-nav button {
+      background: none; border: none;
+      display: flex; flex-direction: column;
+      align-items: center;
+      font-size: 13px; cursor: pointer; color: #666;
+      flex: 1;
+    }
+    .bottom-nav .material-icons {
+      font-size: 26px; margin-bottom: 3px;
+    }
+    .bottom-nav button.active { color: #0052a5; }
+    .bottom-nav button.active .material-icons {
+      color: #0052a5; transform: scale(1.2);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <span class="material-icons drawer-btn">menu</span>
+    <h1>IPO Dashboard</h1>
+    <span id="alertBell">
+      <span class="material-icons">notifications</span>
+      <span id="alertDot"></span>
+    </span>
+  </header>
+
+  <!-- Search + Filter -->
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search IPO company...">
+    <select id="filterBoard">
+      <option value="all">All Boards</option>
+      <option value="main">Main Board</option>
+      <option value="sme">SME</option>
+    </select>
+  </div>
+
+  <!-- Top Tabs -->
+  <nav class="top">
+    <button class="tab active" data-status="live">Live</button>
+    <button class="tab" data-status="upcoming">Upcoming</button>
+    <button class="tab" data-status="closed">Closed</button>
+  </nav>
+
+  <!-- IPO Cards -->
+  <div class="grid" id="grid"></div>
+
+  <!-- IPO Details Modal -->
+  <div class="modal" id="modal"><div class="modal-content">
+    <span class="close" id="mclose">&times;</span>
+    <h3 id="mtitle"></h3>
+    <pre id="mdetails" style="font-size:13px;"></pre>
+  </div></div>
+
+  <!-- Alerts Modal -->
+  <div class="modal" id="alertModal"><div class="modal-content">
+    <span class="close" id="alertClose">&times;</span>
+    <h3>IPO Alerts</h3>
+    <ul id="alertList" style="font-size:14px; padding-left:20px;"></ul>
+  </div></div>
+
+  <!-- Bottom Navigation -->
+  <div class="bottom-nav">
+    <button class="btab active" data-board="all">
+      <span class="material-icons">home</span>
+      <span>Dashboard</span>
+    </button>
+    <button class="btab" data-board="main">
+      <span class="material-icons">apartment</span>
+      <span>Main</span>
+    </button>
+    <button class="btab" data-board="sme">
+      <span class="material-icons">insights</span>
+      <span>SME</span>
+    </button>
+  </div>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const tabs = document.querySelectorAll('.tab');
+    const bTabs = document.querySelectorAll('.btab');
+    const modal = document.getElementById('modal'), mclose = document.getElementById('mclose');
+    const mtitle = document.getElementById('mtitle'), mdetails = document.getElementById('mdetails');
+    const searchInput = document.getElementById('searchInput');
+    const filterBoard = document.getElementById('filterBoard');
+
+    // Alerts
+    const alertBell = document.getElementById("alertBell");
+    const alertDot = document.getElementById("alertDot");
+    const alertModal = document.getElementById("alertModal");
+    const alertClose = document.getElementById("alertClose");
+    const alertList = document.getElementById("alertList");
+    let alerts = [
+      "IPO Company 5 is now LIVE ✅",
+      "IPO Company 7 subscription closing tomorrow 🔔",
+      "IPO Company 3 will be listed soon 📢"
+    ];
+    if (alerts.length > 0) alertDot.style.display = "block";
+    alertBell.onclick = () => {
+      alertModal.style.display = "flex";
+      alertDot.style.display = "none";
+      alertList.innerHTML = alerts.map(a => `<li>${a}</li>`).join("");
+    };
+    alertClose.onclick = () => alertModal.style.display = "none";
+
+    // Dummy IPO Data
+    let allData = [];
+    for (let i=1;i<=10;i++) {
+      allData.push({
+        company:`IPO Company ${i}`,
+        status: i%3===0 ? "closed" : (i%2===0 ? "upcoming" : "live"),
+        board: i%2===0 ? "main" : "sme",
+        logo:"https://via.placeholder.com/80x50",
+        price:`₹${100+i*10} - ₹${120+i*10}`,   // ✅ fixed currency
+        gmp: (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random()*50),
+        subscription:`${(Math.random()*10).toFixed(1)}x`,
+        offerDate:`2025-09-${10+i}`,
+        minlot:`${10+i} Shares`,
+        fundSize:`₹${100+i*20} Cr`             // ✅ fixed currency
+      });
+    }
+
+    let currentStatus = "live";
+    let currentBoard = "all";
+    let searchQuery = "";
+
+    function render() {
+      grid.innerHTML = '';
+      allData
+        .filter(c => c.status === currentStatus)
+        .filter(c => currentBoard === "all" || c.board === currentBoard)
+        .filter(c => c.company.toLowerCase().includes(searchQuery.toLowerCase()))
+        .forEach(c => {
+          const d = document.createElement('div');
+          d.className = `card ${c.status}`;
+
+          const gmpValue = parseInt(c.gmp);
+          const isNegative = gmpValue < 0;
+          const gmpColor = isNegative ? "red" : "green";
+          const absGmp = Math.abs(gmpValue);
+
+          const prices = c.price.replace(/₹/g,"").split("-");
+          const minP = parseInt(prices[0]);
+          const maxP = parseInt(prices[1]);
+          const midP = (minP+maxP)/2;
+          const perc = ((absGmp/midP)*100).toFixed(1);
+
+          d.innerHTML=`
+            <div class="card-header">
+              <img src="${c.logo}" alt="${c.company}">
+              <h3>${c.company}</h3>
+              <span class="status ${c.status}">${c.status.toUpperCase()}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="card-info">
+              <span><strong>Offer Date:</strong> ${c.offerDate}</span>
+              <span><strong>Price:</strong> ${c.price}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="card-table">
+              <div><strong>Min Lot</strong><br>${c.minlot}</div>
+              <div><strong>Subscription</strong><br>${c.subscription}</div>
+              <div><strong>GMP</strong><br>
+                <span style="color:${gmpColor}; font-weight:bold;">
+                  ${absGmp} (${perc}%)
+                </span>
+              </div>
+            </div>
+            <div class="card-footer">
+              <button class="details-btn">Details</button>
+              <div class="fund-size">
+                <span class="material-icons">payments</span> ${c.fundSize}
+              </div>
+            </div>
+          `;
+          d.querySelector('.details-btn').onclick = () => {
+            mtitle.innerText = c.company;
+            mdetails.innerText = JSON.stringify(c, null, 2);
+            modal.style.display = 'flex';
+          };
+          grid.appendChild(d);
+        });
+    }
+
+    // Top Tabs
+    tabs.forEach(btn => {
+      btn.onclick = () => {
+        tabs.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentStatus = btn.dataset.status;
+        render();
+      };
+    });
+
+    // Bottom Tabs
+    bTabs.forEach(btn => {
+      btn.onclick = () => {
+        bTabs.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentBoard = btn.dataset.board;
+        filterBoard.value = currentBoard;
+        render();
+      };
+    });
+
+    // Search + Filter
+    searchInput.oninput = () => { searchQuery = searchInput.value; render(); };
+    filterBoard.onchange = () => { currentBoard = filterBoard.value; render(); };
+
+    mclose.onclick = () => modal.style.display = 'none';
+    window.onclick = e => {
+      if (e.target === modal) modal.style.display = 'none';
+      if (e.target === alertModal) alertModal.style.display = 'none';
+    };
+
+    render();
+  </script>
+  
+</body>
+</html>
